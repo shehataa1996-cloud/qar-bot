@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>بوت العقار الذكي — بحث مباشر في عقار</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0a0e14;
+    --bg-panel:#11151c;
+    --bg-panel-2:#161c26;
+    --line:#1c2430;
+    --cyan:#00f0ff;
+    --magenta:#ff2e92;
+    --text:#e8f4f8;
+    --muted:#6b7888;
+    --good:#39ff8a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg-base);
+    color:var(--text);
+    font-family:'Tajawal',sans-serif;
+    min-height:100vh;
+    position:relative;
+    overflow-x:hidden;
+  }
+
+  /* ====== شبكة المخطط العقاري في الخلفية (Signature element) ====== */
+  .grid-bg{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(0,240,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,240,255,0.05) 1px, transparent 1px);
+    background-size:38px 38px;
+    animation:driftGrid 22s linear infinite;
+  }
+  @keyframes driftGrid{ from{background-position:0 0;} to{background-position:38px 38px;} }
+  .grid-bg::after{
+    content:"";
+    position:absolute; inset:0;
+    background:radial-gradient(circle at 50% -10%, rgba(0,240,255,0.10), transparent 55%);
+  }
+
+  .wrap{
+    position:relative; z-index:1;
+    max-width:760px; margin:0 auto;
+    padding:28px 16px 80px;
+  }
+
+  header{ text-align:center; margin-bottom:22px; }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:.12em;
+    color:var(--cyan); opacity:.8;
+    text-transform:uppercase;
+  }
+  h1{
+    font-size:26px; font-weight:900; margin:6px 0 4px;
+    background:linear-gradient(90deg,var(--cyan),var(--magenta));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub{ color:var(--muted); font-size:13.5px; }
+
+  /* ====== صندوق الإدخال ====== */
+  .composer{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+    display:flex; gap:10px;
+    box-shadow:0 0 0 1px rgba(0,240,255,0.04), 0 18px 40px -20px rgba(0,240,255,0.15);
+  }
+  textarea{
+    flex:1; resize:none; min-height:46px; max-height:120px;
+    background:transparent; border:none; outline:none;
+    color:var(--text); font-family:'Tajawal',sans-serif; font-size:15px;
+    line-height:1.5;
+  }
+  textarea::placeholder{ color:var(--muted); }
+  button.send{
+    background:linear-gradient(135deg,var(--cyan),#0090a8);
+    border:none; border-radius:10px;
+    color:#001014; font-weight:700; font-size:14px;
+    padding:0 18px; cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease;
+    white-space:nowrap;
+  }
+  button.send:hover{ transform:translateY(-1px); box-shadow:0 8px 18px -8px var(--cyan); }
+  button.send:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+
+  .hint{ color:var(--muted); font-size:12px; margin-top:8px; text-align:center; }
+
+  /* ====== سجل المحادثة ====== */
+  .feed{ margin-top:26px; display:flex; flex-direction:column; gap:18px; }
+
+  .bubble{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:13px 16px;
+    font-size:14.5px; line-height:1.7;
+  }
+  .bubble.user{
+    align-self:flex-end;
+    border-color:rgba(255,46,146,0.35);
+    background:linear-gradient(180deg,#161018,#11151c);
+  }
+  .bubble.bot{ border-color:rgba(0,240,255,0.25); }
+  .bubble.error{ border-color:rgba(255,46,146,0.5); color:#ffb6d8; }
+
+  .scanning{
+    display:flex; align-items:center; gap:10px;
+    color:var(--cyan); font-family:'JetBrains Mono',monospace; font-size:12.5px;
+  }
+  .scanning .dot{
+    width:7px; height:7px; border-radius:50%; background:var(--cyan);
+    animation:pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
+
+  /* ====== بطاقات الإعلانات (Plot Cards) ====== */
+  .results{ display:flex; flex-direction:column; gap:14px; }
+  .plot-card{
+    position:relative;
+    background:var(--bg-panel-2);
+    border:1px dashed rgba(0,240,255,0.28);
+    border-radius:10px;
+    padding:16px;
+    transition:border-color .2s ease, transform .2s ease;
+  }
+  .plot-card:hover{ border-color:rgba(0,240,255,0.6); transform:translateY(-2px); }
+
+  /* زوايا استهداف (reticle) - بدل ظل بطاقة عادي */
+  .plot-card::before, .plot-card::after{
+    content:""; position:absolute; width:10px; height:10px;
+  }
+  .plot-card::before{ top:-1px; right:-1px; border-top:2px solid var(--magenta); border-right:2px solid var(--magenta); border-radius:0 8px 0 0;}
+  .plot-card::after{ bottom:-1px; left:-1px; border-bottom:2px solid var(--magenta); border-left:2px solid var(--magenta); border-radius:0 0 0 8px;}
+
+  .pc-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .pc-title{ font-size:14.5px; font-weight:700; color:var(--text); flex:1; }
+  .pc-price{
+    font-family:'JetBrains Mono',monospace; font-weight:600;
+    color:var(--good); font-size:15px; white-space:nowrap;
+    direction:ltr; text-align:left;
+  }
+
+  .pc-meta{ display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
+  .chip{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px;
+    border:1px solid var(--line); color:var(--cyan);
+    padding:3px 9px; border-radius:20px; background:rgba(0,240,255,0.05);
+  }
+
+  .pc-snippet{ color:#aebbc7; font-size:13px; line-height:1.6; margin-bottom:10px; white-space:pre-line; }
+
+  .pc-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .pc-actions a{
+    font-size:12.5px; text-decoration:none;
+    padding:7px 12px; border-radius:8px;
+    border:1px solid var(--line); color:var(--text);
+    display:inline-flex; align-items:center; gap:6px;
+    transition:background .15s ease;
+  }
+  .pc-actions a.call{ border-color:rgba(57,255,138,0.4); color:var(--good); }
+  .pc-actions a.wa{ border-color:rgba(57,255,138,0.4); color:var(--good); }
+  .pc-actions a.src{ border-color:rgba(0,240,255,0.4); color:var(--cyan); }
+  .pc-actions a:hover{ background:rgba(255,255,255,0.04); }
+
+  .no-phone{ font-size:12px; color:var(--muted); }
+
+  footer{ text-align:center; color:var(--muted); font-size:11.5px; margin-top:40px; }
+  footer a{ color:var(--cyan); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">REAL-ESTATE SCANNER · مصدر البيانات: عقار (aqar.fm)</div>
+    <h1>بوت العقار الذكي</h1>
+    <div class="sub">اكتب طلبك بالعربي العادي — وهات النتائج الحقيقية بالجوال ورقم الإعلان</div>
+  </header>
+
+  <div class="composer">
+    <textarea id="input" placeholder="مثال: أبحث عن قطعة أرض في حي الياسمين بالرياض مساحة 500 متر"></textarea>
+    <button class="send" id="sendBtn">ابحث 🔍</button>
+  </div>
+  <div class="hint">جرّب: «أرض للبيع في النرجس 400 متر» أو «شقة للإيجار في الملقا»</div>
+
+  <div class="feed" id="feed"></div>
+
+  <footer>
+    البيانات تُسحب مباشرة من إعلانات عامة على <a href="https://sa.aqar.fm" target="_blank" rel="noopener noreferrer">aqar.fm</a> — تحقق دائماً من الإعلان الأصلي قبل التواصل أو الدفع.
+  </footer>
+</div>
+
+<script>
+const feed = document.getElementById('feed');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+
+function addBubble(html, cls){
+  const div = document.createElement('div');
+  div.className = 'bubble ' + cls;
+  div.innerHTML = html;
+  feed.appendChild(div);
+  window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
+  return div;
+}
+
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function formatPrice(n){
+  if(!n) return 'السعر غير محدد';
+  return new Intl.NumberFormat('en-US').format(n) + ' ريال';
+}
+
+function renderListings(listings){
+  if(!listings.length){
+    return '<div class="bubble bot">لم أجد إعلانات مطابقة بالضبط لمواصفاتك حالياً. جرّب توسيع المساحة أو التأكد من اسم الحي.</div>';
+  }
+  const cards = listings.map(l => {
+    const actions = [];
+    if(l.phoneLink) actions.push(`<a class="call" href="${l.phoneLink}">📞 اتصال</a>`);
+    if(l.whatsappLink) actions.push(`<a class="wa" href="${l.whatsappLink}" target="_blank" rel="noopener noreferrer">💬 واتساب</a>`);
+    actions.push(`<a class="src" href="${l.link}" target="_blank" rel="noopener noreferrer">🔗 الإعلان الأصلي${l.adId ? ' #' + l.adId : ''}</a>`);
+
+    const meta = [];
+    if(l.area) meta.push(`<span class="chip">${l.area} م²</span>`);
+    if(l.streetWidth) meta.push(`<span class="chip">شارع ${l.streetWidth}م</span>`);
+    if(l.propertyTag) meta.push(`<span class="chip">${l.propertyTag}</span>`);
+
+    return `
+      <div class="plot-card">
+        <div class="pc-head">
+          <div class="pc-title">${escapeHtml(l.title || 'إعلان عقاري')}</div>
+          <div class="pc-price">${formatPrice(l.price)}</div>
+        </div>
+        <div class="pc-meta">${meta.join('')}</div>
+        <div class="pc-snippet">${escapeHtml((l.snippet||'').slice(0,220))}…</div>
+        ${!l.phone ? '<div class="no-phone">📵 رقم الجوال غير ظاهر بالنص — افتح الإعلان الأصلي للتواصل</div>' : ''}
+        ${l.adId ? `<div class="pc-link">📌 رقم الإعلان: <strong>#${escapeHtml(l.adId)}</strong></div>` : ''}
+        <div class="pc-actions" style="margin-top:8px;">${actions.join('')}</div>
+      </div>`;
+  }).join('');
+
+  return `<div class="results">${cards}</div>`;
+}
+
+async function handleSearch(){
+  const message = input.value.trim();
+  if(!message) return;
+
+  addBubble(escapeHtml(message), 'user');
+  input.value = '';
+  sendBtn.disabled = true;
+
+  const loadingBubble = addBubble(
+    `<div class="scanning"><span class="dot"></span> جاري مسح المخططات والبحث في عقار...</div>`,
+    'bot'
+  );
+
+  try{
+    const res = await fetch('/api/search', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({message})
+    });
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (parseError) {
+      throw new Error(`الرد من السيرفر غير صالح. تأكد من أن التطبيق يعمل على استضافة تدعم API مثل Vercel. (${res.status})`);
+    }
+
+    loadingBubble.remove();
+
+    if(!res.ok){
+      addBubble('⚠️ خطأ في السيرفر: ' + escapeHtml(data.error || `HTTP ${res.status}`), 'bot error');
+      return;
+    }
+
+    if(!data.success){
+      addBubble('⚠️ ' + escapeHtml(data.error || 'حدث خطأ غير متوقع'), 'bot error');
+      return;
+    }
+
+    const f = data.filters || {};
+    const summary = `لقيت <b>${data.count}</b> نتيجة (${escapeHtml(f.propertyType||'عقار')} ${escapeHtml(f.listingType||'')}) في <b>${escapeHtml(f.district||f.city||'')}</b>:`;
+    addBubble(summary, 'bot');
+    addBubble(renderListings(data.listings), 'bot');
+
+  }catch(err){
+    loadingBubble.remove();
+    addBubble('⚠️ تعذر الاتصال بالسيرفر: ' + escapeHtml(err.message), 'bot error');
+  }finally{
+    sendBtn.disabled = false;
+  }
+}
+
+sendBtn.addEventListener('click', handleSearch);
+input.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    handleSearch();
+  }
+});
+</script>
+
+</body>
+</html>
